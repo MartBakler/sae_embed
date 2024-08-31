@@ -10,8 +10,8 @@ from natsort import natsorted
 from safetensors.torch import load_model, save_model
 from torch import Tensor, nn
 
-from .config import SaeConfig
-from .utils import decoder_impl
+from config import SaeConfig
+from utils import decoder_impl
 
 
 class EncoderOutput(NamedTuple):

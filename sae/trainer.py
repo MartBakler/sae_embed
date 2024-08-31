@@ -14,19 +14,20 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import PreTrainedModel, get_linear_schedule_with_warmup
 
-from .config import TrainConfig
-from .data import MemmapDataset
-from .sae import Sae
-from .utils import geometric_median, get_layer_list, resolve_widths
+from config import TrainConfig
+from data import MemmapDataset
+from sae import Sae
+from utils import geometric_median, get_layer_list, resolve_widths
 
 
 class SaeTrainer:
     def __init__(
         self, cfg: TrainConfig, dataset: HfDataset | MemmapDataset, model: PreTrainedModel
     ):
-        if cfg.hookpoints:
+        
+        if cfg.hookpoints and not cfg.embedding_task:
             assert not cfg.layers, "Cannot specify both `hookpoints` and `layers`."
-
+            
             # Replace wildcard patterns
             raw_hookpoints = []
             for name, _ in model.named_modules():
@@ -35,7 +36,7 @@ class SaeTrainer:
 
             # Natural sort to impose a consistent order
             cfg.hookpoints = natsorted(raw_hookpoints)
-        else:
+        elif not cfg.embedding_task:
             # If no layers are specified, train on all of them
             if not cfg.layers:
                 N = model.config.num_hidden_layers
@@ -54,15 +55,19 @@ class SaeTrainer:
         num_examples = len(dataset)
 
         device = model.device
-        input_widths = resolve_widths(model, cfg.hookpoints)
-        unique_widths = set(input_widths.values())
+        if not not cfg.embedding_task:
+            input_widths = resolve_widths(model, cfg.hookpoints)
+            unique_widths = set(input_widths.values())
 
-        if cfg.distribute_modules and len(unique_widths) > 1:
-            # dist.all_to_all requires tensors to have the same shape across ranks
-            raise ValueError(
-                f"All modules must output tensors of the same shape when using "
-                f"`distribute_modules=True`, got {unique_widths}"
-            )
+            if cfg.distribute_modules and len(unique_widths) > 1:
+                # dist.all_to_all requires tensors to have the same shape across ranks
+                raise ValueError(
+                    f"All modules must output tensors of the same shape when using "
+                    f"`distribute_modules=True`, got {unique_widths}"
+                )
+        else:
+            # wont have the problem above with embedding as we just do data parallel
+            input_widths = [dataset[0]["input_ids"].shape[1]]
 
         self.model = model
         self.saes = {
@@ -145,7 +150,7 @@ class SaeTrainer:
         num_sae_params = sum(
             p.numel() for s in self.saes.values() for p in s.parameters()
         )
-        num_model_params = sum(p.numel() for p in self.model.parameters())
+        num_model_params = sum(p.numel() for p in self.model.parameters()) if self.model is not None else -1
         print(f"Number of SAE parameters: {num_sae_params:_}")
         print(f"Number of model parameters: {num_model_params:_}")
 

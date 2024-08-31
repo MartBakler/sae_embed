@@ -29,6 +29,9 @@ class SaeConfig(Serializable):
 class TrainConfig(Serializable):
     sae: SaeConfig
 
+    embedding_task: bool = False
+    """Whether to train the SAE as an embedding task."""
+
     batch_size: int = 8
     """Batch size measured in sequences."""
 
@@ -46,7 +49,7 @@ class TrainConfig(Serializable):
     auxk_alpha: float = 0.0
     """Weight of the auxiliary loss term."""
 
-    dead_feature_threshold: int = 10_000_000
+    dead_feature_threshold: int = 1000
     """Number of tokens after which a feature is considered dead."""
 
     hookpoints: list[str] = list_field()
