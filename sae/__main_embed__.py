@@ -10,10 +10,10 @@ dataset_name = "mbakler/test_dataset"
 
 dataset = load_dataset(
     dataset_name,
-    trust_remote_code=True,
-    split = "batch_0_781"
-)
+    trust_remote_code=True
+)["train"]
 print(len(dataset))
+test_dp = dataset[0]
 
 d_model=1024
 
@@ -23,4 +23,4 @@ cfg = TrainConfig(
 # dead_feature_threshold questionable, how todo this???
 trainer = SaeTrainer(cfg, dataset, None)
 #
-#trainer.fit()
+trainer.fit()

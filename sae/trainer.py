@@ -50,12 +50,12 @@ class SaeTrainer:
         self.dataset = dataset
         self.distribute_modules()
 
-        N = len(cfg.hookpoints)
+        N = len(cfg.hookpoints) if not cfg.embedding_task else 1 # not sure yet what this is for
         assert isinstance(dataset, Sized)
         num_examples = len(dataset)
 
-        device = model.device
-        if not not cfg.embedding_task:
+        device = model.device if model else "cuda" # lets hardcode this for now
+        if not cfg.embedding_task:
             input_widths = resolve_widths(model, cfg.hookpoints)
             unique_widths = set(input_widths.values())
 
@@ -67,13 +67,18 @@ class SaeTrainer:
                 )
         else:
             # wont have the problem above with embedding as we just do data parallel
-            input_widths = [dataset[0]["input_ids"].shape[1]]
+            input_widths = [len(dataset[0]["embeddings"])]
 
         self.model = model
-        self.saes = {
-            hook: Sae(input_widths[hook], cfg.sae, device)
-            for hook in self.local_hookpoints()
-        }
+        if not cfg.embedding_task:
+            self.saes = {
+                hook: Sae(input_widths[hook], cfg.sae, device)
+                for hook in self.local_hookpoints()
+            }
+        else:
+            self.saes = {
+                "embeddings": Sae(input_widths[0], cfg.sae, device)
+            }
 
         pgs = [
             {
